@@ -25,13 +25,10 @@ politsei_postitused <- politsei_postitused_raw %>%
     # ainult teated facebooki feed-st
     filter(type == "status") %>%
     mutate(tunnus = str_extract(message, "^[^:]+"),  # teatest tunnus
-           # teate esitamise aeg
-           aeg = str_replace_all(created_time, "T|\\+0000", ""),
-           aeg = parse_date_time(aeg, "ymdHMS"),
-           aeg = aeg + hours(1),
            tund = hour(aeg),
            tund = ifelse(tund == 0, 24, tund),
-           # suuremate tunnuste grupeerimine
+           aasta = year(aeg),
+           #suuremate tunnuste grupeerimine
            tunnus_toodeldud = ifelse(str_detect(tunnus, "LIIKLUS"), "LIIKLUS", 
                                      tunnus),
            tunnus_toodeldud = ifelse(str_detect(tunnus_toodeldud, "JOOBES"), 
@@ -53,6 +50,7 @@ names(vorm) <- c("tund", "tunnus")
 
 # postituste arv tunnuste ja tundide lõikes
 postituste_arv <- politsei_postitused %>%
+    filter(aasta == 2016) %>%
     group_by(tund, tunnus) %>%
     tally() %>%
     ungroup() %>%
@@ -110,13 +108,15 @@ pm <- function(x){
 }
 
 # AM ja PM graafikud kõrvuti
-grid.arrange(am(x = "VÄGIVALD"), pm(x = "VÄGIVALD"), ncol = 2, 
+grid.arrange(am(x = "JOOBES INIMENE"), pm(x = "JOOBES INIMENE"), ncol = 2, 
              top = "Vägivallaga seotud teated")
 
 # Beesworm graafik
 p <- politsei_postitused %>%    
     filter(tunnus %in% c("VÄGIVALD", "LIIKLUS", "JOOBES INIMENE", "AVALIK KORD",
-                         "VARGUS")) %>%
+                         "VARGUS"), aasta == 2016) %>%
+    mutate(message = str_wrap(message, width = 50),
+           message = str_replace_all(message, "\\n", "<br>")) %>%
     # text määrab tooltip väärtuse
     ggplot(aes(x = factor(tund), y = tunnus_toodeldud, group = tunnus_toodeldud, 
                text = message, color = tunnus_toodeldud)) +
@@ -155,6 +155,9 @@ animeeritud_graafik <- postituste_arv %>%
                                             tund + 1)),
                               ".00", sep = ""),
            tund_am_pm = ifelse(am_pm == "PM", tund - 12, tund)) %>%
+    group_by(tund, tund_am_pm, tund_frame, am_pm) %>%
+    summarise(n = sum(n)) %>%
+    ungroup() %>%
     left_join(fill) %>%
     ggplot(aes(x = factor(tund_am_pm), y = n, group = am_pm, fill = fill, 
                frame = tund_frame)) +
